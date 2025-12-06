@@ -1,0 +1,20 @@
+# --- Segurança (CRÍTICO) ---
+.env
+.env.local
+.DS_Store
+
+# --- Python & Ambiente ---
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+
+# --- Dados da Lytus (Propriedade Intelectual) ---
+knowledge_base/
+*.pdf
+*.docx
+*.txt
+db/
+*.sqlite3
+*.log

@@ -1,0 +1,67 @@
+services:
+  evolution_api:
+    image: atendai/evolution-api:latest
+    container_name: evolution_api
+    restart: always
+    ports:
+      - "8080:8080"
+    shm_size: '2gb'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
+    environment:
+      # Servidor
+      - SERVER_URL=http://localhost:8080
+      - AUTHENTICATION_API_KEY=lytus_secret_key_123
+
+      # Banco de dados
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://postgres:lytuspass@evolution_postgres:5432/evolution
+
+      # Redis
+      - REDIS_ENABLED=true
+      - REDIS_URI=redis://evolution_redis:6379/0
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://evolution_redis:6379/0
+
+      # QR Code e Configuração - CORRIGIDO
+      - QRCODE_LIMIT=30
+      - QRCODE_COLOR=#000000
+      - CONFIG_SESSION_PHONE_CLIENT=LytusBot
+      - CONFIG_SESSION_PHONE_NAME=Chrome
+      - CONFIG_SESSION_PHONE_VERSION=2.3000.1025062854
+      - WEBSOCKET_ENABLED=true
+      - LOG_LEVEL=WARN
+
+    depends_on:
+      - postgres
+      - redis
+      # volumes:
+      # - evolution_instances:/evolution/instances  <-- REMOVIDO PARA EVITAR ERRO DE PERMISSÃO NO WINDOWS
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: evolution_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=lytuspass
+      - POSTGRES_DB=evolution
+    volumes:
+      - evolution_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:6.2-alpine
+    container_name: evolution_redis
+    restart: always
+    command: redis-server --appendonly no
+    volumes:
+      - evolution_redis_data:/data
+
+volumes:
+  evolution_postgres_data:
+  evolution_redis_data: # evolution_instances: <-- REMOVIDO
