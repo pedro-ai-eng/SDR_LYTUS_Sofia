@@ -6,13 +6,14 @@ import json
 import google.generativeai as genai
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from sentence_transformers import SentenceTransformer
 
 # Carrega variáveis de ambiente
 load_dotenv()
 
 # --- CONFIGURAÇÕES ---
 EVOLUTION_API_URL = "http://localhost:8080"  # Ajuste se estiver em container diferente
-API_KEY_EVOLUTION = os.getenv("EVOLUTION_API_KEY", "global-api-key") # Defina no .env se mudou
+API_KEY_EVOLUTION = os.getenv("EVOLUTION_API_KEY", "lytus_secret_key_123")
 INSTANCE_NAME = "Sofia" # Nome da instância na Evolution
 
 # Configuração Gemini
@@ -23,9 +24,13 @@ url_supabase = os.getenv("SUPABASE_URL")
 key_supabase = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(url_supabase, key_supabase)
 
+# Modelo de Embeddings LOCAL (MESMO do ingest.py para compatibilidade)
+print("📥 Carregando modelo de embeddings...")
+embedding_model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
+
 class SofiaSDR:
     def __init__(self):
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp') # Ou modelo de sua preferência
+        self.model = genai.GenerativeModel('gemini-2.0-flash-lite') # Modelo leve e disponível
         self.consultor_nome = "Pedro"
         self.empresa = "Lytus"
 
@@ -39,44 +44,45 @@ class SofiaSDR:
         """
         Gera delays naturais e envia status de 'digitando...'
         """
-        # 1. Tempo de Leitura (Simulado)
-        # Humanos leem aprox 200 palavras/min. Vamos ser mais rápidos, mas não instantâneos.
+        # 1. Tempo de Leitura (Otimizado)
+        # Rápido: 0.5 a 1.0s
         palavras_recebidas = len(texto_recebido.split())
-        tempo_leitura = random.uniform(1.5, 4.0) + (palavras_recebidas * 0.1)
+        tempo_leitura = random.uniform(0.5, 1.0)
         print(f"👀 Sofia Lendo por {tempo_leitura:.2f}s...")
         time.sleep(tempo_leitura)
 
         # 2. Enviar 'Digitando...' (Presence)
         url_presence = f"{EVOLUTION_API_URL}/chat/sendPresence/{INSTANCE_NAME}"
-        payload_presence = {"number": remote_jid.split('@')[0], "presence": "composing", "delay": 0}
+        
+        # Tratamento LID para presence
+        number_presence = remote_jid
+        if "@lid" not in remote_jid:
+            number_presence = remote_jid.split('@')[0].split(':')[0]
+
+        payload_presence = {"number": number_presence, "presence": "composing", "delay": 0}
         try:
             requests.post(url_presence, json=payload_presence, headers=self._get_headers())
         except Exception as e:
             print(f"Erro ao enviar presence: {e}")
 
-        # 3. Tempo de Digitação (Simulado)
-        # Baseado no tamanho da resposta gerada
+        # 3. Tempo de Digitação (Otimizado)
         caracteres_resposta = len(texto_resposta)
-        # Média de digitação no celular + pausas para pensar
-        tempo_digitacao = random.uniform(2.0, 5.0) + (caracteres_resposta * 0.05) 
+        # Acelerado: 1.0 a 2.0s base + 0.02s por caracter
+        tempo_digitacao = random.uniform(1.0, 2.0) + (caracteres_resposta * 0.02) 
         
-        # Teto máximo para não demorar demais
-        tempo_digitacao = min(tempo_digitacao, 15.0) 
+        # Teto maximo de 5s
+        tempo_digitacao = min(tempo_digitacao, 5.0) 
         
         print(f"✍️ Sofia Digitando por {tempo_digitacao:.2f}s...")
         time.sleep(tempo_digitacao)
 
     def _consultar_base_conhecimento(self, query):
         """
-        Busca vetorial no Supabase (Placeholder funcional)
+        Busca vetorial no Supabase usando modelo LOCAL (mesmo do ingest.py)
         """
         try:
-            # Gera embedding da query
-            embedding = genai.embed_content(
-                model="models/text-embedding-004",
-                content=query,
-                task_type="retrieval_query"
-            )["embedding"]
+            # Gera embedding da query com modelo LOCAL
+            embedding = embedding_model.encode(query).tolist()
 
             # Chama função RPC no Supabase (match_documents)
             response = supabase.rpc(
@@ -93,7 +99,7 @@ class SofiaSDR:
             print(f"⚠️ Erro no RAG: {e}")
             return "Sem dados específicos na base."
 
-    def processar_mensagem(self, remote_jid, mensagem_usuario, nome_usuario="Cliente"):
+    def processar_mensagem(self, remote_jid, mensagem_usuario, nome_usuario="Cliente", message_id=None):
         print(f"📩 Processando mensagem de {nome_usuario}: {mensagem_usuario}")
 
         # 1. Recuperar Contexto (RAG)
@@ -134,17 +140,38 @@ class SofiaSDR:
 
         # 5. Enviar Mensagem Real
         url_send = f"{EVOLUTION_API_URL}/message/sendText/{INSTANCE_NAME}"
+        
+        # Correção LID: Se for LID, usa o JID completo. Se não, limpa.
+        if "@lid" in remote_jid:
+            numero_destino = remote_jid
+            print(f"⚠️ Detectado LID. Usando JID completo: {numero_destino}")
+        else:
+            # Remove sufixo de dispositivo (ex: :2) e domínio
+            numero_destino = remote_jid.split('@')[0].split(':')[0]
+        
+        print(f"🎯 JID Original: {remote_jid} | Número processado: {numero_destino}")
+
         payload_send = {
-            "number": remote_jid.split('@')[0],
+            "number": numero_destino,
             "text": texto_final
         }
         
+        # Adiciona Quote se tiver message_id
+        if message_id:
+            payload_send["quoted"] = {"key": {"id": message_id}}
+        
         try:
+            print(f"📤 Enviando payload para Evolution: {json.dumps(payload_send)}")
             res = requests.post(url_send, json=payload_send, headers=self._get_headers())
-            print(f"✅ Resposta enviada: {res.status_code}")
-            return res.json()
+            
+            if res.status_code == 200 or res.status_code == 201:
+                print(f"✅ Resposta enviada: {res.status_code}")
+                return res.json()
+            else:
+                print(f"❌ Erro Evolution API ({res.status_code}): {res.text}")
+                return None
         except Exception as e:
-            print(f"❌ Erro ao enviar: {e}")
+            print(f"❌ Erro crítico ao enviar: {e}")
             return None
 
 # Instância Global para ser importada pelo servidor HTTP

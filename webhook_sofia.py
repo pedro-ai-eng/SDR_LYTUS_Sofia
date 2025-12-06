@@ -12,6 +12,8 @@ app = Flask(__name__)
 def webhook_handler():
     try:
         data = request.json
+        import json
+        logger.info(f"📦 Payload Recebido (Debug): {json.dumps(data)}")
         
         # Validações básicas
         if not data or 'data' not in data:
@@ -45,9 +47,12 @@ def webhook_handler():
 
         push_name = payload.get('pushName', 'Cliente')
 
+        # Extração do ID da mensagem para Quote
+        message_id = key.get('id')
+
         # --- ACIONA A SOFIA ---
         logger.info(f"🔔 Webhook acionado por {push_name}: {texto_usuario}")
-        sofia.processar_mensagem(remote_jid, texto_usuario, push_name)
+        sofia.processar_mensagem(remote_jid, texto_usuario, push_name, message_id)
 
         return jsonify({"status": "processed"}), 200
 

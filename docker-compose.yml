@@ -12,6 +12,8 @@ services:
       - 8.8.8.8
       - 8.8.4.4
       - 1.1.1.1
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     environment:
       # Servidor
       - SERVER_URL=http://localhost:8080
@@ -28,14 +30,22 @@ services:
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://evolution_redis:6379/0
 
-      # QR Code e Configuração - CORRIGIDO
+      # QR Code e Configuração
       - QRCODE_LIMIT=30
       - QRCODE_COLOR=#000000
-      - CONFIG_SESSION_PHONE_CLIENT=LytusBot
+      - CONFIG_SESSION_PHONE_CLIENT=Chrome
       - CONFIG_SESSION_PHONE_NAME=Chrome
-      - CONFIG_SESSION_PHONE_VERSION=2.3000.1025062854
+      - CONFIG_SESSION_PHONE_VERSION=2.3000.1028716292
       - WEBSOCKET_ENABLED=true
-      - LOG_LEVEL=WARN
+      - LOG_LEVEL=DEBUG
+
+      # WEBHOOK GLOBAL - Envia mensagens para o servidor Sofia
+      - WEBHOOK_GLOBAL_URL=http://host.docker.internal:5000/webhook
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=false
+      - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
+      - WEBHOOK_EVENTS_MESSAGES_UPDATE=false
+      - WEBHOOK_EVENTS_CONNECTION_UPDATE=true
 
     depends_on:
       - postgres
